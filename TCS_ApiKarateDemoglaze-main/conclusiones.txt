@@ -1,0 +1,133 @@
+========================================================
+  CONCLUSIONES Y HALLAZGOS - PRUEBAS API DEMOBLAZE
+  Fecha de ejecucion: 2026-03-01
+  Herramienta: Karate Framework 1.2.0 + JUnit 5 + Maven
+========================================================
+
+RESUMEN DE RESULTADOS
+---------------------
+  Total de casos ejecutados : 4
+  Casos exitosos            : 4
+  Casos fallidos            : 0
+  Tiempo total de ejecucion : ~6 segundos
+
+========================================================
+  DETALLE POR CASO DE PRUEBA
+========================================================
+
+CASO 1 - Crear nuevo usuario en signup
+---------------------------------------
+  Endpoint  : POST https://api.demoblaze.com/signup
+  Entrada   : { "username": "testUser_<timestamp>", "password": "Password123" }
+  Salida    : HTTP 200 | Body: ""  (cadena vacia JSON)
+  Resultado : EXITOSO
+
+  Hallazgo: La API retorna HTTP 200 en todos los casos (exito y error).
+  Para diferenciar el exito del error se debe analizar el cuerpo de la
+  respuesta: en exito retorna una cadena vacia (""), en error retorna
+  un objeto JSON con el campo "errorMessage".
+
+  Hallazgo: Al usar un username fijo (hardcodeado), el caso de prueba
+  pierde validez despues de la primera ejecucion porque el usuario ya
+  existe. Se soluciono usando un username dinamico con timestamp
+  (ej: testUser_1772386800040) que garantiza unicidad en cada ejecucion.
+
+
+CASO 2 - Intentar crear usuario ya existente
+----------------------------------------------
+  Endpoint  : POST https://api.demoblaze.com/signup
+  Entrada   : { "username": "nuevoUsuario1", "password": "password1234" }
+  Salida    : HTTP 200 | Body: { "errorMessage": "This user already exist." }
+  Resultado : EXITOSO
+
+  Hallazgo: La API no usa codigos HTTP de error (ej: 409 Conflict) para
+  indicar que el usuario ya existe. Siempre retorna HTTP 200 y delega
+  al cliente la responsabilidad de revisar el campo "errorMessage".
+  Esto es una deficiencia de diseno REST: los codigos de estado HTTP
+  deberian reflejar el resultado de la operacion.
+
+
+CASO 3 - Login con usuario y contrasena correctos
+--------------------------------------------------
+  Endpoint  : POST https://api.demoblaze.com/login
+  Entrada   : { "username": "loginTest_<timestamp>", "password": "TestPass123" }
+  Salida    : HTTP 200 | Body: "Auth_token: bG9naW5UZXN0XzE3NzIzO..."
+  Resultado : EXITOSO
+
+  Hallazgo: La API retorna un token de autenticacion en formato:
+  "Auth_token: <valor_base64>" cuando las credenciales son correctas.
+  El valor base64 decodificado contiene: username:timestamp, lo que
+  indica que el token NO es criptograficamente seguro (no es JWT ni
+  firmado). Esto representa una vulnerabilidad de seguridad potencial.
+
+  Hallazgo: Se detecto que el usuario 'nuevoUsuario1' con password
+  'password1234' (datos originales del proyecto) retornaba "Wrong password",
+  lo que indica que esas credenciales no eran validas en el servidor.
+  Se corrigio haciendo el Caso 3 autocontenido: crea su propio usuario
+  con timestamp y luego hace login con esas mismas credenciales.
+
+
+CASO 4 - Login con usuario y contrasena incorrectos
+-----------------------------------------------------
+  Endpoint  : POST https://api.demoblaze.com/login
+  Entrada   : { "username": "nuevoUsuario1", "password": "contrasenaIncorrecta999" }
+  Salida    : HTTP 200 | Body: { "errorMessage": "Wrong password." }
+  Resultado : EXITOSO
+
+  Hallazgo: Al igual que en signup, la API retorna HTTP 200 incluso cuando
+  las credenciales son incorrectas. El manejo de errores se realiza
+  exclusivamente a traves del campo "errorMessage" en el body.
+
+  Hallazgo: No existe mecanismo de bloqueo por intentos fallidos. Es posible
+  realizar multiples intentos de login con distintas contrasenas sin
+  restriccion, lo que hace al sistema vulnerable a ataques de fuerza bruta.
+
+========================================================
+  HALLAZGOS GENERALES DE LA API
+========================================================
+
+1. CODIGO HTTP UNIFORME (HTTP 200 para todo)
+   La API siempre retorna HTTP 200 independientemente del resultado.
+   Practica REST correcta seria usar:
+     - 201 Created  -> usuario creado exitosamente
+     - 409 Conflict -> usuario ya existente
+     - 401 Unauthorized -> credenciales incorrectas
+     - 200 OK        -> login exitoso
+
+2. AUSENCIA DE RATE LIMITING
+   No se encontro ninguna limitacion de intentos en los endpoints.
+   Riesgo: susceptible a ataques de fuerza bruta y enumeracion de usuarios.
+
+3. TOKEN INSEGURO
+   El token de autenticacion es simplemente base64(username:timestamp).
+   No esta firmado ni cifrado. Podria ser facilmente falsificado.
+   Se recomienda implementar JWT (JSON Web Token) con firma HMAC o RSA.
+
+4. DATOS EN TEXTO PLANO
+   Las contrasenas se envian en el body JSON sin ninguna mencion de
+   cifrado del lado cliente. Se deberia garantizar HTTPS en todo momento
+   (la API usa HTTPS, lo cual es correcto).
+
+5. MENSAJES DE ERROR INFORMATIVOS
+   Los mensajes "This user already exist." y "Wrong password." revelan
+   informacion que podria usarse para enumerar usuarios validos en el sistema.
+
+========================================================
+  CONCLUSIONES GENERALES
+========================================================
+
+- Karate Framework es una herramienta eficiente para pruebas de APIs REST,
+  permitiendo definir casos de prueba en lenguaje Gherkin (BDD) sin necesidad
+  de escribir codigo Java adicional para las aserciones.
+
+- La API de Demoblaze cumple su funcion basica pero presenta deficiencias
+  importantes en diseno REST y seguridad que no son adecuadas para un
+  entorno de produccion real.
+
+- Es fundamental que los casos de prueba sean autocontenidos y no dependan
+  de estado previo en el servidor (usuarios creados manualmente, etc.).
+  El uso de datos dinamicos (timestamp) garantiza la repetibilidad de las
+  pruebas en cualquier momento.
+
+- Las aserciones deben validar tanto el codigo HTTP como el cuerpo de la
+  respuesta para detectar errores que la API oculta detras de un HTTP 200.

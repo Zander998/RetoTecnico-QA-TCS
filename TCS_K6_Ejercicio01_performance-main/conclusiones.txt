@@ -1,0 +1,30 @@
+CONCLUSIONES
+Realicé una prueba de carga al endpoint de autenticación https://fakestoreapi.com/auth/login utilizando la herramienta K6, siguiendo los criterios técnicos definidos en el ejercicio.
+El objetivo era evaluar el comportamiento del servicio bajo una carga elevada con rampa de subida y bajada, validando su estabilidad sostenida.
+
+HALLAZGOS PRINCIPALES
+
+- Se utilizó un conjunto de 5 credenciales válidas extraídas de la API pública, incluyendo el usuario mor_2314, cargadas desde un archivo CSV externo.
+
+- La prueba se ejecutó en 3 etapas: ramp-up de 0 a 100 VUs en 1 minuto, carga sostenida de 100 VUs durante 3 minutos, y ramp-down de 100 a 0 VUs en 1 minuto. Duración total: aproximadamente 5 minutos 1 segundo.
+
+- Se realizaron 17,563 peticiones en total, alcanzando una tasa de 58.31 transacciones por segundo (TPS) con hasta 100 usuarios virtuales concurrentes.
+
+- El tiempo de respuesta promedio fue de 369.95 ms, con un mínimo de 333.91 ms y un máximo de 1.05 s.
+  El percentil 90 se ubicó en 384.97 ms y el percentil 95 en 395.6 ms, cumpliendo ampliamente con el umbral de 1.5 segundos establecido para la prueba.
+
+- La tasa de error fue de 0.00% (0 de 17,563 peticiones), por debajo del límite aceptable de menos del 3%.
+
+- Se ejecutaron 52,689 verificaciones en total (3 por cada iteración: status HTTP, presencia del token y tiempo de respuesta). El 100% de las verificaciones fueron exitosas.
+
+- Todas las respuestas del servidor incluyeron un token de autenticación válido, confirmando que el login fue exitoso en cada iteración durante toda la duración de la prueba.
+
+OBSERVACION TECNICA RELEVANTE
+Al inicio, el script validaba respuestas con código HTTP 200, asumiendo que ese sería el indicador de éxito.
+Sin embargo, durante la ejecución se observó que el servidor responde con HTTP 201 (Created) cuando el login es exitoso.
+El script fue ajustado para aceptar este código como válido, lo que permitió que las validaciones reflejaran correctamente el comportamiento real del servicio.
+
+CONCLUSION GENERAL
+Con base en los resultados obtenidos, el servicio de login responde de forma estable, confiable y eficiente ante cargas elevadas y sostenidas.
+La infraestructura manejó hasta 100 usuarios virtuales concurrentes sin registrar ningún error, y con tiempos de respuesta óptimos (p95 = 395.6 ms, apenas el 26% del umbral de 1500 ms),
+lo que demuestra que el servicio está bien preparado para escenarios de alta concurrencia con rendimiento consistente a lo largo del tiempo.
